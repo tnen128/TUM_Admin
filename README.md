@@ -83,16 +83,3 @@ app/
 3. Click "Generate Document" to create the initial version
 4. Use the refinement options to improve the document
 5. Export the final document in your preferred format
-
-## Contributing
-
-Please follow these steps to contribute:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
