@@ -1,98 +1,75 @@
-# TUM Administrative Document Assistant
+# TUM Admin Assistant
 
-A powerful tool for generating and managing administrative documents at TUM.
+## Overview
+TUM Admin Assistant is a robust, secure, and user-friendly system for generating, refining, and exporting official administrative documents for the Technical University of Munich (TUM). It leverages LLMs (Google Gemini) and LangChain for context-aware document creation and refinement, with a modern Streamlit frontend.
 
 ## Features
+- Generate announcements, student communications, and meeting summaries with selectable tone
+- Refine documents using conversational context (up to last 3 documents)
+- Export documents as PDF, DOCX, or TXT with TUM branding
+- Chat-like interface for easy interaction
+- Robust prompt-injection protection and input validation
+- Session management and document history
 
-- **Document Generation**: Create various types of administrative documents:
-  - Announcements
-  - Student Communications
-  - Meeting Summaries
-
-- **Tone Control**: Customize document tone:
-  - Neutral
-  - Friendly
-  - Firm but polite
-  - Formal
-
-- **Document Export**: Export documents in multiple formats:
-  - PDF (with TUM branding)
-  - DOCX (Microsoft Word)
-  - TXT (Plain text)
-
-- **Document Refinement**: Iteratively improve documents based on feedback
-- **Version History**: Track changes and previous versions
-
-## Setup
-
-1. Create a virtual environment:
+## Installation
+1. Clone the repository:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   git clone <repo-url>
+   cd TUMAdmin
    ```
-
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-
-3. Create a `.env` file:
-   ```
+3. Set up your `.env` file with your Gemini API key and backend URL:
+   ```env
    BACKEND_URL=http://localhost:8000
+   GOOGLE_API_KEY=your_gemini_api_key_here
    ```
 
-## Running the Application
+## Running the System
+- **Backend:**
+  ```bash
+  export PYTHONPATH=$PYTHONPATH:$(pwd)
+  uvicorn app.api.main:app --reload
+  ```
+- **Frontend:**
+  ```bash
+  streamlit run app/web/main.py
+  ```
 
-1. Start the backend server:
-   ```bash
-   cd app/api
-   uvicorn main:app --reload
-   ```
+## API Endpoints
+- `/api/documents/generate` — Generate a new document
+- `/api/documents/refine` — Refine an existing document (with up to last 3 documents as context)
+- `/api/documents/export` — Export a document in PDF, DOCX, or TXT format
+- `/health` — Health check
 
-2. Start the frontend (in a new terminal):
-   ```bash
-   cd app/web
-   streamlit run main.py
-   ```
+## Document Generation & Refinement
+- **Generation:** Uses a prompt template based on document type and tone. No previous context is used.
+- **Refinement:** Uses a universal template that includes the last document and up to 2 more previous documents as context, plus the user's instruction. The LLM is instructed to only make the requested changes.
 
-The application will be available at:
-- Frontend: http://localhost:8501
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
+## Export Functionality
+- Export any document in PDF, DOCX, or TXT format with TUM branding.
+- Download is available directly from the sidebar for each document.
 
-## Project Structure
+## Security & Robustness
+- Hardened prompt templates to prevent prompt injection/jailbreaking
+- Input validation and error handling
+- Backend and frontend separation for API key security
 
-```
-app/
-├── api/
-│   ├── models/
-│   │   └── document.py
-│   ├── services/
-│   │   └── export_service.py
-│   └── main.py
-└── web/
-    ├── components/
-    ├── utils/
-    └── main.py
-```
+## Example Usage
+1. Generate an announcement:
+   - "Please write an announcement for students: no lecture tomorrow for GenAI course. My name is Prof. Mohamed."
+2. Refine the document:
+   - "Change my name to Prof. Mostafa."
+3. Export the document as PDF or DOCX from the sidebar.
 
-## Usage
+## Resetting the Conversation
+- To start fresh, simply refresh the Streamlit page. (A reset button can be added if desired.)
 
-1. Select document type and tone from the sidebar
-2. Enter your document requirements in the text area
-3. Click "Generate Document" to create the initial version
-4. Use the refinement options to improve the document
-5. Export the final document in your preferred format
-
-## Contributing
-
-Please follow these steps to contribute:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+## Developer Notes
+- All functions and endpoints are documented with detailed docstrings.
+- The system is designed for extensibility and security.
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT
