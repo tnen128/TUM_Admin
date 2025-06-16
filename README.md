@@ -65,11 +65,4 @@ TUM Admin Assistant is a robust, secure, and user-friendly system for generating
 3. Export the document as PDF or DOCX from the sidebar.
 
 ## Resetting the Conversation
-- To start fresh, simply refresh the Streamlit page. (A reset button can be added if desired.)
-
-## Developer Notes
-- All functions and endpoints are documented with detailed docstrings.
-- The system is designed for extensibility and security.
-
-## License
-MIT
+- To start fresh, simply refresh the Streamlit page.
