@@ -1,0 +1,3 @@
+"""
+TUM Admin Web package.
+"""

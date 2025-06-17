@@ -1,44 +1,30 @@
-# TUM Administrative Document Assistant
+# TUM Admin Assistant
 
-A powerful tool for generating and managing administrative documents at TUM.
+## Overview
+TUM Admin Assistant is a robust, secure, and user-friendly system for generating, refining, and exporting official administrative documents for the Technical University of Munich (TUM). It leverages LLMs (Google Gemini) and LangChain for context-aware document creation and refinement, with a modern Streamlit frontend.
 
 ## Features
+- Generate announcements, student communications, and meeting summaries with selectable tone
+- Refine documents using conversational context (up to last 3 documents)
+- Export documents as PDF, DOCX, or TXT with TUM branding
+- Chat-like interface for easy interaction
+- Robust prompt-injection protection and input validation
+- Session management and document history
 
-- **Document Generation**: Create various types of administrative documents:
-  - Announcements
-  - Student Communications
-  - Meeting Summaries
-
-- **Tone Control**: Customize document tone:
-  - Neutral
-  - Friendly
-  - Firm but polite
-  - Formal
-
-- **Document Export**: Export documents in multiple formats:
-  - PDF (with TUM branding)
-  - DOCX (Microsoft Word)
-  - TXT (Plain text)
-
-- **Document Refinement**: Iteratively improve documents based on feedback
-- **Version History**: Track changes and previous versions
-
-## Setup
-
-1. Create a virtual environment:
+## Installation
+1. Clone the repository:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   git clone <repo-url>
+   cd TUMAdmin
    ```
-
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-
-3. Create a `.env` file:
-   ```
+3. Set up your `.env` file with your Gemini API key and backend URL:
+   ```env
    BACKEND_URL=http://localhost:8000
+   GOOGLE_API_KEY=your_gemini_api_key_here
    ```
 
 ## Running the Application
@@ -83,3 +69,16 @@ app/
 3. Click "Generate Document" to create the initial version
 4. Use the refinement options to improve the document
 5. Export the final document in your preferred format
+
+## Contributing
+
+Please follow these steps to contribute:
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
