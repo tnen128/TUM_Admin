@@ -1,32 +1,47 @@
 #!/bin/bash
 
-# Get the absolute path of the project directory
 PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Export the Python path
 export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH}"
 
-# Function to run the backend
+source "$PROJECT_DIR/venv/bin/activate"
+
 run_backend() {
     echo "Starting backend server..."
     cd "$PROJECT_DIR"
     uvicorn app.api.main:app --reload
 }
 
-# Function to run the frontend
 run_frontend() {
     echo "Starting frontend server..."
     cd "$PROJECT_DIR"
     streamlit run app/web/main.py
 }
 
-# Check if a specific component was requested
+# Detect OS (macOS vs Linux/WSL)
+OS="$(uname)"
+IS_MAC=false
+IS_WSL=false
+
+if [[ "$OS" == "Darwin" ]]; then
+    IS_MAC=true
+elif grep -qi microsoft /proc/version; then
+    IS_WSL=true
+fi
+
+# Run based on input
 if [ "$1" == "backend" ]; then
     run_backend
 elif [ "$1" == "frontend" ]; then
     run_frontend
 else
-    # Run both in separate terminals
-    osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && ./run.sh backend\""
-    osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && ./run.sh frontend\""
-fi 
+    if [ "$IS_MAC" = true ]; then
+        # Use macOS Terminal to run both scripts
+        osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && ./run.sh backend\""
+        osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && ./run.sh frontend\""
+    else
+        # Default (Linux/WSL): Run both in background in same terminal
+        run_backend & 
+        run_frontend & 
+        wait
+    fi
+fi
