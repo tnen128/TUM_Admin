@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from enum import Enum
@@ -9,8 +9,16 @@ from app.api.models.document import (
     ExportRequest, DocumentType, ToneType
 )
 from app.api.services.export_service import DocumentExporter
+from app.api.services.llm_service import LLMService
 import os
 from datetime import datetime
+import logging
+import json
+import asyncio
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Models
 class DocumentType(str, Enum):
@@ -28,9 +36,13 @@ class DocumentRequest(BaseModel):
     prompt: str
     doc_type: DocumentType
     tone: ToneType
+    additional_context: Optional[str] = None
 
 class RefinementRequest(BaseModel):
     refinement_prompt: str
+    current_document: str
+    doc_type: DocumentType
+    tone: ToneType
 
 class DocumentResponse(BaseModel):
     document: str
@@ -43,14 +55,20 @@ app = FastAPI(title="TUM Admin Assistant")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Initialize services
-document_exporter = DocumentExporter()
+try:
+    llm_service = LLMService()
+    document_exporter = DocumentExporter()
+    logger.info("Successfully initialized services")
+except Exception as e:
+    logger.error(f"Error initializing services: {str(e)}")
+    raise
 
 # Test Data
 def get_test_response(doc_type: str, tone: str) -> str:
@@ -76,80 +94,57 @@ TUM Administration""",
     return responses.get(doc_type, "Test document content")
 
 # Routes
-@app.post("/api/documents/generate", response_model=DocumentResponse)
+@app.post("/api/documents/generate")
 async def generate_document(request: DocumentRequest):
-    """Generate a new document"""
+    """Generate a document based on the request parameters."""
     try:
-        response = get_test_response(request.doc_type.value, request.tone.value)
-        return {
-            "document": response,
-            "metadata": {
-                "doc_type": request.doc_type.value,
-                "tone": request.tone.value,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            },
-            "history": [{"user": request.prompt, "assistant": response}]
-        }
+        logger.info(f"Generating document of type {request.doc_type} with tone {request.tone}")
+        result = llm_service.generate_document(
+            request.doc_type,
+            request.tone,
+            request.prompt,
+            request.additional_context
+        )
+        return result
     except Exception as e:
+        logger.error(f"Error generating document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/documents/refine", response_model=DocumentResponse)
+@app.post("/api/documents/refine")
 async def refine_document(request: RefinementRequest):
-    """Refine an existing document"""
+    """Refine a document based on the refinement request."""
     try:
-        response = f"""[Refined version based on: "{request.refinement_prompt}"]
-
-This is a test refinement response.
-The actual Gemini-powered refinement will be implemented later.
-
-Best regards,
-TUM Administration"""
+        logger.info(f"Refining document of type {request.doc_type} with tone {request.tone}")
         
-        return {
-            "document": response,
-            "metadata": {
-                "type": "refinement",
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            },
-            "history": [{"user": request.refinement_prompt, "assistant": response}]
-        }
+        async def generate():
+            async for chunk in llm_service.refine_document(
+                request.current_document,
+                request.refinement_prompt,
+                request.doc_type,
+                request.tone
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream"
+        )
     except Exception as e:
+        logger.error(f"Error refining document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/documents/export")
 async def export_document(request: ExportRequest):
-    """Export document in the specified format"""
+    """Export a document in the specified format."""
     try:
-        # Generate the file
-        filepath = document_exporter.export_document(
-            request.document_content,
-            request.metadata,
-            request.format.value
-        )
-        
-        # Get the filename from the filepath
-        filename = os.path.basename(filepath)
-        
-        # Set the appropriate media type
-        media_types = {
-            "pdf": "application/pdf",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "txt": "text/plain"
-        }
-        media_type = media_types.get(request.format.value, "application/octet-stream")
-        
-        # Return the file with proper headers
-        return FileResponse(
-            path=filepath,
-            filename=filename,
-            media_type=media_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
+        logger.info(f"Exporting document in {request.format} format")
+        result = document_exporter.export_document(request.document_content, request.metadata, request.format)
+        return FileResponse(result, filename=os.path.basename(result))
     except Exception as e:
+        logger.error(f"Error exporting document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint."""
     return {"status": "healthy"} 
