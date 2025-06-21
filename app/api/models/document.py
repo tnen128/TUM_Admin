@@ -47,10 +47,12 @@ class DocumentRequest(BaseModel):
         prompt (str): The prompt for generating the document.
         doc_type (DocumentType): The type of document being generated.
         tone (ToneType): The tone of the document being generated.
+        additional_context (Optional[str]): Additional context for document generation.
     """
     prompt: str = Field(..., min_length=10, description="The document generation prompt")
     doc_type: DocumentType
     tone: ToneType
+    additional_context: Optional[str] = None
 
 class RefinementRequest(BaseModel):
     """
@@ -58,8 +60,14 @@ class RefinementRequest(BaseModel):
 
     Args:
         refinement_prompt (str): The instructions for refining the document.
+        current_document (str): The current document content to refine.
+        doc_type (DocumentType): The type of document being refined.
+        tone (ToneType): The tone of the document being refined.
     """
     refinement_prompt: str = Field(..., min_length=10, description="The refinement instructions")
+    current_document: str = Field(..., description="The current document content")
+    doc_type: DocumentType
+    tone: ToneType
 
 class ExportRequest(BaseModel):
     """
