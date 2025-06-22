@@ -7,8 +7,24 @@ from datetime import datetime
 import json
 from typing import Dict, Any
 import time
-from app.api.models.document import DocumentType, ToneType
 import io
+from enum import Enum
+
+# Try to import from the API models, fallback to local definitions if it fails
+try:
+    from app.api.models.document import DocumentType, ToneType
+except ImportError:
+    # Fallback: Define the enums locally
+    class DocumentType(str, Enum):
+        ANNOUNCEMENT = "Announcement"
+        STUDENT_COMMUNICATION = "Student Communication"
+        MEETING_SUMMARY = "Meeting Summary"
+
+    class ToneType(str, Enum):
+        NEUTRAL = "Neutral"
+        FRIENDLY = "Friendly"
+        FIRM = "Firm but polite"
+        FORMAL = "Formal"
 
 # Load environment variables
 load_dotenv()
