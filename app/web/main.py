@@ -296,7 +296,7 @@ st.markdown("""
     }
 
     .input-container button {
-        background: linear-gradient(135deg, var(--tum-blue), var(--tum-light-blue));
+        background: var(--tum-blue) !important;
         color: white;
         border: none;
         padding: 1rem 2rem;
@@ -330,7 +330,7 @@ st.markdown("""
     }
 
     .input-container button:hover {
-        background: linear-gradient(135deg, var(--tum-light-blue), var(--tum-blue));
+        background: var(--tum-light-blue) !important;
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(0, 100, 170, 0.4);
     }
@@ -340,10 +340,32 @@ st.markdown("""
     }
 
     .input-container button:disabled {
-        background: linear-gradient(135deg, var(--tum-gray), #d1d5db);
+        background: linear-gradient(135deg, var(--tum-gray), #d1d5db) !important;
         cursor: not-allowed;
         transform: none;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Dropdown styling */
+    .stSelectbox > div > div {
+        background: var(--tum-blue) !important;
+        border-color: var(--tum-blue) !important;
+    }
+
+    .stSelectbox > div > div:hover {
+        background: var(--tum-light-blue) !important;
+        border-color: var(--tum-light-blue) !important;
+    }
+
+    .stSelectbox > div > div:focus {
+        background: var(--tum-blue) !important;
+        border-color: var(--tum-blue) !important;
+        box-shadow: 0 0 0 2px rgba(0, 100, 170, 0.2) !important;
+    }
+
+    .stSelectbox label {
+        color: white !important;
+        font-weight: 600 !important;
     }
 
     /* Typing indicator */
@@ -516,8 +538,8 @@ st.markdown("""
 
     .sidebar-header {
         text-align: center;
-        margin-bottom: 2rem;
         animation: slideInDown 0.8s ease-out;
+        padding-top: 1rem;
     }
 
     .sidebar-header img {
@@ -530,6 +552,37 @@ st.markdown("""
     .sidebar-header img:hover {
         transform: scale(1.05);
         filter: drop-shadow(0 8px 25px rgba(0, 100, 170, 0.3));
+    }
+
+    /* User information input styling */
+    .stTextInput input {
+        background: linear-gradient(135deg, #ffffff, #f8f9fa) !important;
+        border: 2px solid rgba(0, 100, 170, 0.2) !important;
+        border-radius: 0.75rem !important;
+        padding: 0.75rem 1rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+        font-size: 0.95rem !important;
+        color: var(--tum-dark-gray) !important;
+    }
+
+    .stTextInput input:focus {
+        border-color: var(--tum-blue) !important;
+        box-shadow: 0 0 0 3px rgba(0, 100, 170, 0.1), 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+        transform: translateY(-1px) !important;
+        color: var(--tum-dark-gray) !important;
+    }
+
+    .stTextInput input::placeholder {
+        color: rgba(0, 100, 170, 0.6) !important;
+        font-style: italic !important;
+    }
+
+    .stTextInput label {
+        color: white !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        margin-bottom: 0.5rem !important;
     }
 
     .history-item {
@@ -624,6 +677,59 @@ st.markdown("""
         }
     }
 </style>
+
+<script>
+// Function to scroll to top of chat container
+function scrollToTop() {
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+        chatContainer.scrollTop = 0;
+    }
+}
+
+// Function to scroll to top after a delay
+function scrollToTopAfterDelay() {
+    setTimeout(scrollToTop, 100);
+}
+
+// Listen for document generation completion
+document.addEventListener('DOMContentLoaded', function() {
+    // Create a MutationObserver to watch for new messages
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                // Check if a new assistant message was added
+                const addedNodes = Array.from(mutation.addedNodes);
+                const hasAssistantMessage = addedNodes.some(node => 
+                    node.nodeType === 1 && 
+                    node.classList && 
+                    node.classList.contains('chat-message') && 
+                    node.classList.contains('assistant')
+                );
+                
+                if (hasAssistantMessage) {
+                    // Scroll to top after a short delay to ensure content is rendered
+                    scrollToTopAfterDelay();
+                }
+            }
+        });
+    });
+    
+    // Start observing the chat container
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+        observer.observe(chatContainer, {
+            childList: true,
+            subtree: true
+        });
+    }
+});
+
+// Also scroll to top when the page loads
+window.addEventListener('load', function() {
+    scrollToTopAfterDelay();
+});
+</script>
 """, unsafe_allow_html=True)
 
 # Initialize session state
@@ -647,9 +753,47 @@ if "exported_file_name" not in st.session_state:
     st.session_state.exported_file_name = None
 if "exported_file_mime" not in st.session_state:
     st.session_state.exported_file_mime = None
+if "full_name" not in st.session_state:
+    st.session_state.full_name = ""
+if "department_position" not in st.session_state:
+    st.session_state.department_position = ""
 
 # Backend URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
+def clean_document_text(text: str) -> str:
+    """
+    Clean up document text to remove excessive spacing and formatting issues.
+    
+    Args:
+        text (str): The raw document text.
+        
+    Return:
+        str: Cleaned document text.
+    """
+    if not text:
+        return text
+    
+    # Remove excessive line breaks
+    text = text.replace('\n\n\n', '\n\n')
+    text = text.replace('\n\n\n\n', '\n\n')
+    
+    # Remove excessive spaces
+    text = text.replace('  ', ' ')
+    text = text.replace('   ', ' ')
+    
+    # Clean up spaces around punctuation
+    text = text.replace(' .', '.')
+    text = text.replace(' ,', ',')
+    text = text.replace(' !', '!')
+    text = text.replace(' ?', '?')
+    text = text.replace(' :', ':')
+    text = text.replace(' ;', ';')
+    
+    # Remove leading/trailing whitespace
+    text = text.strip()
+    
+    return text
 
 def generate_document(doc_type: str, tone: str, prompt: str, additional_context: str = ""):
     """
@@ -675,7 +819,28 @@ def generate_document(doc_type: str, tone: str, prompt: str, additional_context:
             }
         )
         response.raise_for_status()
-        return response.json()
+        result = response.json()
+        
+        # Append user information at the end of the document
+        if result and "document" in result:
+            # Check if user info is already present to avoid duplication
+            user_info = ""
+            if st.session_state.full_name or st.session_state.department_position:
+                # Check if signature block already exists
+                signature_marker = "---\n"
+                if signature_marker not in result["document"]:
+                    user_info += "\n\n---\n"
+                    if st.session_state.full_name:
+                        user_info += f"**{st.session_state.full_name}**\n"
+                    if st.session_state.department_position:
+                        user_info += f"{st.session_state.department_position}\n"
+                    user_info += "Technical University of Munich"
+            
+            result["document"] += user_info
+            # Clean up the document text
+            result["document"] = clean_document_text(result["document"])
+        
+        return result
     except Exception as e:
         st.error(f"Error generating document: {str(e)}")
         return None
@@ -721,20 +886,24 @@ def export_document_and_prepare_download(document, format, doc_type, tone):
         st.session_state.exported_file_name = None
         st.session_state.exported_file_mime = None
 
-def simulate_streaming(text: str, chunk_size: int = 10):
+def simulate_streaming(text: str, chunk_size: int = 5):
     """
     Simulate streaming text by yielding chunks.
 
     Args:
         text (str): The text to stream.
-        chunk_size (int, optional): The size of each chunk. Defaults to 10.
+        chunk_size (int, optional): The size of each chunk. Defaults to 5.
 
     Return:
         generator: Yields chunks of the text.
     """
+    # Clean up the text to remove excessive whitespace
+    text = text.replace('\n\n\n', '\n\n')  # Remove triple line breaks
+    text = text.replace('  ', ' ')  # Remove double spaces
+    
     for i in range(0, len(text), chunk_size):
         yield text[i:i + chunk_size]
-        time.sleep(0.02)  # Small delay for smooth animation
+        time.sleep(0.01)  # Reduced delay for smoother animation
 
 # Document Preview Modal state
 if "show_preview" not in st.session_state:
@@ -836,6 +1005,26 @@ def refine_document(current_document: str, refinement_prompt: str, doc_type: str
                     full_response += chunk["document"]
                 except Exception:
                     continue
+        
+        # Append user information at the end of the refined document
+        if full_response:
+            # Check if user info is already present to avoid duplication
+            user_info = ""
+            if st.session_state.full_name or st.session_state.department_position:
+                # Check if signature block already exists
+                signature_marker = "---\n"
+                if signature_marker not in full_response:
+                    user_info += "\n\n---\n"
+                    if st.session_state.full_name:
+                        user_info += f"**{st.session_state.full_name}**\n"
+                    if st.session_state.department_position:
+                        user_info += f"{st.session_state.department_position}\n"
+                    user_info += "Technical University of Munich"
+            
+            full_response += user_info
+            # Clean up the document text
+            full_response = clean_document_text(full_response)
+        
         return full_response
     except Exception as e:
         st.error(f"Error refining document: {str(e)}")
@@ -847,6 +1036,24 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/c/c8/Logo_of_the_Technical_University_of_Munich.svg", 
              width=150)
     
+    st.markdown("### 👤 User Information")
+    full_name = st.text_input(
+        "Full Name",
+        value=st.session_state.full_name,
+        placeholder=" John Doe",
+        key="full_name_input"
+    )
+    st.session_state.full_name = full_name
+    
+    department_position = st.text_input(
+        "Department / Position",
+        value=st.session_state.department_position,
+        placeholder=" Academic and Student Affairs",
+        key="department_position_input"
+    )
+    st.session_state.department_position = department_position
+    
+    st.markdown("---")
     st.markdown("### Document Settings")
     doc_type = st.selectbox(
         "📄 Document Type",
@@ -965,58 +1172,57 @@ with chat_container:
         """, unsafe_allow_html=True)
 
 # Input container
-with st.container():
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
-    prompt = st.text_area("", placeholder="Type your message here...", key=f"prompt_input_{st.session_state.input_key}", height=50)
-    if st.button("Send ✉️", key="send_button", disabled=st.session_state.is_generating):
-        if prompt:
-            st.session_state.is_generating = True
-            st.session_state.typing = True
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.spinner(""):
-                # If there is a previous document, treat as refinement
-                if st.session_state.document_history:
-                    last_doc = st.session_state.document_history[-1]
-                    doc_type_val = last_doc.get("type", doc_type)
-                    tone_val = last_doc.get("tone", tone)
-                    # Get up to the last 3 documents as history (excluding the current one)
-                    history_docs = [d["content"] for d in st.session_state.document_history[-3:]]
-                    refined = refine_document(last_doc["content"], prompt, doc_type_val, tone_val, history=history_docs)
-                    if refined:
-                        message_placeholder = st.empty()
-                        full_response = ""
-                        for chunk in simulate_streaming(refined):
-                            full_response += chunk
-                            message_placeholder.markdown(f"""
-                            <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
-                        st.session_state.current_document = refined
-                        st.session_state.messages.append({"role": "assistant", "content": refined})
-                        st.session_state.document_history.append({
-                            "type": doc_type_val,
-                            "tone": tone_val,
-                            "content": refined,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                else:
-                    # No previous document, generate new
-                    result = generate_document(doc_type, tone, prompt)
-                    if result:
-                        message_placeholder = st.empty()
-                        full_response = ""
-                        for chunk in simulate_streaming(result["document"]):
-                            full_response += chunk
-                            message_placeholder.markdown(f"""
-                            <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
-                        st.session_state.current_document = result["document"]
-                        st.session_state.messages.append({"role": "assistant", "content": result["document"]})
-                        st.session_state.document_history.append({
-                            "type": doc_type,
-                            "tone": tone,
-                            "content": result["document"],
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-            st.session_state.is_generating = False
-            st.session_state.typing = False
-            st.session_state.input_key += 1
-            st.experimental_rerun()
-    st.markdown('</div>', unsafe_allow_html=True) 
+st.markdown('<div class="input-container">', unsafe_allow_html=True)
+prompt = st.text_area("", placeholder="Type your message here...", key=f"prompt_input_{st.session_state.input_key}", height=50)
+if st.button("Send ✉️", key="send_button", disabled=st.session_state.is_generating):
+    if prompt:
+        st.session_state.is_generating = True
+        st.session_state.typing = True
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.spinner(""):
+            # If there is a previous document, treat as refinement
+            if st.session_state.document_history:
+                last_doc = st.session_state.document_history[-1]
+                doc_type_val = last_doc.get("type", doc_type)
+                tone_val = last_doc.get("tone", tone)
+                # Get up to the last 3 documents as history (excluding the current one)
+                history_docs = [d["content"] for d in st.session_state.document_history[-3:]]
+                refined = refine_document(last_doc["content"], prompt, doc_type_val, tone_val, history=history_docs)
+                if refined:
+                    message_placeholder = st.empty()
+                    full_response = ""
+                    for chunk in simulate_streaming(refined):
+                        full_response += chunk
+                        message_placeholder.markdown(f"""
+                        <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
+                    st.session_state.current_document = refined
+                    st.session_state.messages.append({"role": "assistant", "content": refined})
+                    st.session_state.document_history.append({
+                        "type": doc_type_val,
+                        "tone": tone_val,
+                        "content": refined,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+            else:
+                # No previous document, generate new
+                result = generate_document(doc_type or "Announcement", tone or "Neutral", prompt)
+                if result:
+                    message_placeholder = st.empty()
+                    full_response = ""
+                    for chunk in simulate_streaming(result["document"]):
+                        full_response += chunk
+                        message_placeholder.markdown(f"""
+                        <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
+                    st.session_state.current_document = result["document"]
+                    st.session_state.messages.append({"role": "assistant", "content": result["document"]})
+                    st.session_state.document_history.append({
+                        "type": doc_type,
+                        "tone": tone,
+                        "content": result["document"],
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+        st.session_state.is_generating = False
+        st.session_state.typing = False
+        st.session_state.input_key += 1
+        st.experimental_rerun()
+st.markdown('</div>', unsafe_allow_html=True) 
