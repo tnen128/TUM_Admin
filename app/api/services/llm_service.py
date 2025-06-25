@@ -68,10 +68,11 @@ class LLMService:
                 2. Include all necessary details
                 3. Follow TUM's communication guidelines
                 4. Be written in the specified tone
+                5. Do NOT include any closing salutations, signatures, or sender information
                 
                 Additional Context: {additional_context}
                 
-                Format the response as a well-structured announcement.
+                Format the response as a well-structured announcement without any closing signatures or sender information.
                 """,
                 
                 DocumentType.STUDENT_COMMUNICATION: """
@@ -88,10 +89,11 @@ class LLMService:
                 2. Address students directly
                 3. Include all necessary information
                 4. Be written in the specified tone
+                5. Do NOT include any closing salutations, signatures, or sender information
                 
                 Additional Context: {additional_context}
                 
-                Format the response as a well-structured student communication.
+                Format the response as a well-structured student communication without any closing signatures or sender information.
                 """,
                 
                 DocumentType.MEETING_SUMMARY: """
@@ -108,10 +110,11 @@ class LLMService:
                 2. Include all important decisions and action items
                 3. Follow TUM's documentation standards
                 4. Be written in the specified tone
+                5. Do NOT include any closing salutations, signatures, or sender information
                 
                 Additional Context: {additional_context}
                 
-                Format the response as a well-structured meeting summary.
+                Format the response as a well-structured meeting summary without any closing signatures or sender information.
                 """
             }
 
@@ -136,8 +139,7 @@ Tone: {tone.value}
 
 [Test content would be generated here with the actual API]
 
-Best regards,
-TUM Administration""",
+The announcement includes all necessary information for the TUM community.""",
             
             DocumentType.STUDENT_COMMUNICATION: f"""Dear Students,
 
@@ -147,8 +149,7 @@ Tone: {tone.value}
 
 [Test content would be generated here with the actual API]
 
-Best regards,
-TUM Administration""",
+The communication addresses all student concerns and provides clear guidance.""",
             
             DocumentType.MEETING_SUMMARY: f"""Meeting Summary
 
@@ -158,8 +159,7 @@ Tone: {tone.value}
 
 [Test content would be generated here with the actual API]
 
-Best regards,
-TUM Administration"""
+The summary captures all key decisions and action items from the meeting."""
         }
         
         return {
@@ -272,11 +272,12 @@ Your task is to carefully apply ONLY the requested changes described in the inst
 - Preserve all other content, structure, formatting, and tone.
 - If the instruction asks to change a name, date, course, or any specific detail, update ONLY that detail and leave the rest unchanged.
 - If the instruction is ambiguous, make the minimal change required for clarity.
+- Do NOT add any closing salutations, signatures, or sender information.
 
 Tone: {{tone}}
 Document Type: {{doc_type}}
 
-Return ONLY the refined document, ready to send to students or staff.
+Return ONLY the refined document, ready to send to students or staff, without any closing signatures or sender information.
 """
             prompt = refinement_template.format(
                 history_section=history_section,

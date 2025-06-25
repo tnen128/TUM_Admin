@@ -59,8 +59,7 @@ Key Points:
 
 If you have any questions, please contact the student services office.
 
-Best regards,
-TUM Administration""",
+The announcement provides all necessary information for course registration.""",
     }
     return responses.get(doc_type, "Test document content")
 
