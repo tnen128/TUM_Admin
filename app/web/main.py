@@ -1173,7 +1173,7 @@ with chat_container:
 
 # Input container
 st.markdown('<div class="input-container">', unsafe_allow_html=True)
-prompt = st.text_area("", placeholder="Type your message here...", key=f"prompt_input_{st.session_state.input_key}", height=50)
+prompt = st.text_area("", placeholder="Type your message here...", key=f"prompt_input_{st.session_state.input_key}", height=70)
 if st.button("Send ✉️", key="send_button", disabled=st.session_state.is_generating):
     if prompt:
         st.session_state.is_generating = True
@@ -1225,4 +1225,5 @@ if st.button("Send ✉️", key="send_button", disabled=st.session_state.is_gene
         st.session_state.typing = False
         st.session_state.input_key += 1
         st.experimental_rerun()
+        #st.rerun()
 st.markdown('</div>', unsafe_allow_html=True) 
