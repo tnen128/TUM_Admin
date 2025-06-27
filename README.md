@@ -27,42 +27,58 @@ TUM Admin Assistant is a robust, secure, and user-friendly system for generating
    GOOGLE_API_KEY=your_gemini_api_key_here
    ```
 
-## Running the System
-- **Backend:**
-  ```bash
-  export PYTHONPATH=$PYTHONPATH:$(pwd)
-  uvicorn app.api.main:app --reload
-  ```
-- **Frontend:**
-  ```bash
-  streamlit run app/web/main.py
-  ```
+## Running the Application
 
-## API Endpoints
-- `/api/documents/generate` — Generate a new document
-- `/api/documents/refine` — Refine an existing document (with up to last 3 documents as context)
-- `/api/documents/export` — Export a document in PDF, DOCX, or TXT format
-- `/health` — Health check
+1. Start the backend server:
+   ```bash
+   cd app/api
+   uvicorn main:app --reload
+   ```
 
-## Document Generation & Refinement
-- **Generation:** Uses a prompt template based on document type and tone. No previous context is used.
-- **Refinement:** Uses a universal template that includes the last document and up to 2 more previous documents as context, plus the user's instruction. The LLM is instructed to only make the requested changes.
+2. Start the frontend (in a new terminal):
+   ```bash
+   cd app/web
+   streamlit run main.py
+   ```
 
-## Export Functionality
-- Export any document in PDF, DOCX, or TXT format with TUM branding.
-- Download is available directly from the sidebar for each document.
+The application will be available at:
+- Frontend: http://localhost:8501
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
 
-## Security & Robustness
-- Hardened prompt templates to prevent prompt injection/jailbreaking
-- Input validation and error handling
-- Backend and frontend separation for API key security
+## Project Structure
 
-## Example Usage
-1. Generate an announcement:
-   - "Please write an announcement for students: no lecture tomorrow for GenAI course. My name is Prof. Mohamed."
-2. Refine the document:
-   - "Change my name to Prof. Mostafa."
-3. Export the document as PDF or DOCX from the sidebar.
+```
+app/
+├── api/
+│   ├── models/
+│   │   └── document.py
+│   ├── services/
+│   │   └── export_service.py
+│   └── main.py
+└── web/
+    ├── components/
+    ├── utils/
+    └── main.py
+```
 
-## Resetting the Conversation
-- To start fresh, simply refresh the Streamlit page.
+## Usage
+
+1. Select document type and tone from the sidebar
+2. Enter your document requirements in the text area
+3. Click "Generate Document" to create the initial version
+4. Use the refinement options to improve the document
+5. Export the final document in your preferred format
+
+## Contributing
+
+Please follow these steps to contribute:
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
