@@ -37,6 +37,9 @@ class DocumentRequest(BaseModel):
     doc_type: DocumentType
     tone: ToneType
     additional_context: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_profession: Optional[str] = None
+    language: Optional[str] = None
 
 class RefinementRequest(BaseModel):
     refinement_prompt: str
@@ -103,7 +106,10 @@ async def generate_document(request: DocumentRequest):
             request.doc_type,
             request.tone,
             request.prompt,
-            request.additional_context
+            request.additional_context,
+            request.sender_name,
+            request.sender_profession,
+            request.language
         )
         return result
     except Exception as e:

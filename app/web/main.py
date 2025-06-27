@@ -66,12 +66,13 @@ st.markdown("""
         max-width: 80%;
         display: flex;
         flex-direction: column;
-        animation: fadeIn 0.3s ease-in-out;
+        animation: fadeInUp 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+        transition: box-shadow 0.2s, transform 0.2s;
     }
 
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .chat-message.user {
@@ -210,6 +211,7 @@ st.markdown("""
     /* Sidebar styling */
     .sidebar-content {
         padding: 1rem;
+        animation: sidebarSlideIn 0.7s cubic-bezier(0.23, 1, 0.32, 1);
     }
 
     .sidebar-header {
@@ -229,11 +231,12 @@ st.markdown("""
         padding: 1rem;
         margin-bottom: 1rem;
         transition: all 0.3s ease;
+        animation: fadeInCard 0.6s cubic-bezier(0.23, 1, 0.32, 1);
     }
 
     .history-item:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 8px 32px rgba(0, 100, 170, 0.10);
     }
 
     .history-item-header {
@@ -281,6 +284,36 @@ st.markdown("""
     .history-item-actions button:hover {
         transform: translateY(-1px);
     }
+
+    /* Animations for chat messages */
+    .chat-message:hover {
+        box-shadow: 0 8px 32px rgba(0, 100, 170, 0.10);
+        transform: translateY(-2px) scale(1.01);
+    }
+
+    /* Button hover/press animation */
+    .stButton > button, .stDownloadButton {
+        transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .stButton > button:hover, .stDownloadButton:hover {
+        box-shadow: 0 4px 16px rgba(0, 100, 170, 0.15);
+        transform: translateY(-2px) scale(1.03);
+    }
+    .stButton > button:active, .stDownloadButton:active {
+        transform: scale(0.98);
+    }
+
+    /* Sidebar slide-in animation */
+    @keyframes sidebarSlideIn {
+        from { opacity: 0; transform: translateX(-40px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Document history card animation */
+    @keyframes fadeInCard {
+        from { opacity: 0; transform: translateY(20px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -309,7 +342,7 @@ if "exported_file_mime" not in st.session_state:
 # Backend URL
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
-def generate_document(doc_type: str, tone: str, prompt: str, additional_context: str = ""):
+def generate_document(doc_type: str, tone: str, prompt: str, additional_context: str = "", sender_name: str = "", sender_profession: str = "", language: str = "English"):
     """
     Generate a document using the LLM service.
 
@@ -318,6 +351,9 @@ def generate_document(doc_type: str, tone: str, prompt: str, additional_context:
         tone (str): The tone to use in the document.
         prompt (str): The main prompt or key points for the document.
         additional_context (str, optional): Any additional context to include. Defaults to "".
+        sender_name (str, optional): The sender's name. Defaults to "".
+        sender_profession (str, optional): The sender's profession. Defaults to "".
+        language (str, optional): The language of the email. Defaults to "English".
 
     Return:
         dict or None: The response from the backend API, or None if an error occurs.
@@ -329,7 +365,10 @@ def generate_document(doc_type: str, tone: str, prompt: str, additional_context:
                 "doc_type": doc_type,
                 "tone": tone,
                 "prompt": prompt,
-                "additional_context": additional_context
+                "additional_context": additional_context,
+                "sender_name": sender_name,
+                "sender_profession": sender_profession,
+                "language": language
             }
         )
         response.raise_for_status()
@@ -502,9 +541,7 @@ def refine_document(current_document: str, refinement_prompt: str, doc_type: str
 # Sidebar for document type and tone selection
 with st.sidebar:
     st.markdown('<div class="sidebar-header">', unsafe_allow_html=True)
-    st.image("https://upload.wikimedia.org/wikipedia/commons/c/c8/Logo_of_the_Technical_University_of_Munich.svg", 
-             width=150)
-    st.markdown("</div>")
+    st.image("https://upload.wikimedia.org/wikipedia/commons/c/c8/Logo_of_the_Technical_University_of_Munich.svg", width=150)
     
     st.markdown("### Document Settings")
     doc_type = st.selectbox(
@@ -517,6 +554,9 @@ with st.sidebar:
         options=[t.value for t in ToneType],
         format_func=lambda x: x.replace("_", " ").title()
     )
+    sender_name = st.text_input("Sender Name", value="")
+    sender_profession = st.text_input("Sender Profession", value="")
+    language = st.selectbox("Language", options=["English", "German", "Both"], index=0)
     
     st.markdown("---")
     st.markdown("### 📜 Document History")
@@ -577,23 +617,16 @@ if st.session_state.exported_file:
 # Document Preview Modal
 if st.session_state.show_preview and st.session_state.preview_doc_idx is not None:
     doc = st.session_state.document_history[-(st.session_state.preview_doc_idx+1)]
-    st.markdown(f"""
-    <div class="modal" style="display: block;">
-        <div class="modal-content" style="background: #fff; border-radius: 1rem; max-width: 700px; margin: 5% auto; padding: 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-height: 80vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: flex-end;">
-                <button class="close-button" onclick="window.dispatchEvent(new CustomEvent('closePreview'))" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #333;">×</button>
-            </div>
-            <div class="document-preview" style="white-space: pre-wrap; line-height: 1.6; font-size: 1.1rem; color: #222;">
-                {doc['content']}
-            </div>
-            <div class="preview-actions" style="display: flex; gap: 1rem; margin-top: 1rem; justify-content: flex-end;">
-                <button class="primary" onclick="exportDocument('{doc['content']}', 'pdf')">📑 Export PDF</button>
-                <button class="primary" onclick="exportDocument('{doc['content']}', 'docx')">📘 Export DOCX</button>
-            </div>
+    st.markdown(
+        f'''<div style="background: #23272b; border-radius: 1.2rem; box-shadow: 0 12px 48px rgba(0,100,170,0.22); max-width: 900px; margin: 3% auto 2rem auto; padding: 2.7rem 2.5rem 2.2rem 2.5rem; border: 2.5px solid #0064AA;">
+        <div style="font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: 0.5px; margin-bottom: 1.5rem; text-align: left;">
+            📢 Announcement Preview
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.button("Close Preview", on_click=close_preview, key="close_preview_btn")
+        <div style="background: #181c20; border-radius: 0.9rem; padding: 1.6rem 1.3rem; color: #f5f5f5; font-size: 1.18rem; line-height: 1.8; min-height: 260px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #333;">
+        {doc['content'].replace('<','&lt;').replace('>','&gt;').rstrip('</div>').rstrip()}</div></div>''',
+        unsafe_allow_html=True
+    )
+    st.button("Close Preview", on_click=close_preview, key="close_preview_btn", help="Close this preview")
 
 # Main chat interface
 st.title("TUM Admin Assistant 🤖")
@@ -638,8 +671,8 @@ with st.container():
                     last_doc = st.session_state.document_history[-1]
                     doc_type_val = last_doc.get("type", doc_type)
                     tone_val = last_doc.get("tone", tone)
-                    # Get up to the last 3 documents as history (excluding the current one)
-                    history_docs = [d["content"] for d in st.session_state.document_history[-3:]]
+                    # Send the full document history for context
+                    history_docs = [d["content"] for d in st.session_state.document_history]
                     refined = refine_document(last_doc["content"], prompt, doc_type_val, tone_val, history=history_docs)
                     if refined:
                         message_placeholder = st.empty()
@@ -658,7 +691,7 @@ with st.container():
                         })
                 else:
                     # No previous document, generate new
-                    result = generate_document(doc_type, tone, prompt)
+                    result = generate_document(doc_type, tone, prompt, sender_name=sender_name, sender_profession=sender_profession, language=language)
                     if result:
                         message_placeholder = st.empty()
                         full_response = ""

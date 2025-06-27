@@ -53,4 +53,7 @@ temp/
 exports/
 *.pdf
 *.docx
-*.txt 
+*.txt
+
+# New test prompt cases
+llm_prompt_test_cases.txt 

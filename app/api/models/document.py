@@ -41,16 +41,23 @@ class ExportFormat(str, Enum):
 
 class DocumentRequest(BaseModel):
     """
-    DocumentRequest represents the request for generating a document.
-
+    DocumentRequest represents the request for generating a professional email document.
     Args:
-        prompt (str): The prompt for generating the document.
+        prompt (str): The user's freeform input.
         doc_type (DocumentType): The type of document being generated.
         tone (ToneType): The tone of the document being generated.
+        additional_context (Optional[str]): Any additional context for the LLM.
+        sender_name (Optional[str]): The name of the sender.
+        sender_profession (Optional[str]): The profession of the sender.
+        language (Optional[str]): The language of the email.
     """
-    prompt: str = Field(..., min_length=10, description="The document generation prompt")
+    prompt: str
     doc_type: DocumentType
     tone: ToneType
+    additional_context: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_profession: Optional[str] = None
+    language: Optional[str] = 'English'
 
 class RefinementRequest(BaseModel):
     """
