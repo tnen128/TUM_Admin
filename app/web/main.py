@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import os
 import base64
 from datetime import datetime
@@ -9,9 +9,6 @@ from typing import Dict, Any
 import time
 from app.api.models.document import DocumentType, ToneType
 import io
-
-# Load environment variables
-load_dotenv()
 
 # Configure the page
 st.set_page_config(
