@@ -119,3 +119,9 @@ async def export_document(request: ExportRequest):
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"} 
+
+
+#LANGCHAIN WORKING OR NOT
+@app.get("/api/conversation/history")
+async def get_conversation_history():
+    return {"history": llm_service.get_conversation_history()}
