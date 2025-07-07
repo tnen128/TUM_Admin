@@ -73,28 +73,6 @@ except Exception as e:
     logger.error(f"Error initializing services: {str(e)}")
     raise
 
-# Test Data
-def get_test_response(doc_type: str, tone: str) -> str:
-    responses = {
-        "Announcement": f"""Dear Students,
-
-We would like to inform you about an important update regarding course registration. 
-This message is written in a {tone.lower()} tone.
-
-The registration deadline has been extended by one week to accommodate system maintenance.
-Please ensure you complete your registration by the new deadline.
-
-Key Points:
-- Original Deadline: March 15, 2024
-- New Deadline: March 22, 2024
-- Reason: System Maintenance
-
-If you have any questions, please contact the student services office.
-
-Best regards,
-TUM Administration""",
-    }
-    return responses.get(doc_type, "Test document content")
 
 # Routes
 @app.post("/api/documents/generate")
@@ -106,7 +84,6 @@ async def generate_document(request: DocumentRequest):
             request.doc_type,
             request.tone,
             request.prompt,
-            request.additional_context,
             request.sender_name,
             request.sender_profession,
             request.language

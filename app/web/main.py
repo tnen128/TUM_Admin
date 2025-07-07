@@ -317,47 +317,52 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "current_document" not in st.session_state:
-    st.session_state.current_document = None
-if "document_history" not in st.session_state:
-    st.session_state.document_history = []
-if "is_generating" not in st.session_state:
-    st.session_state.is_generating = False
-if "typing" not in st.session_state:
-    st.session_state.typing = False
-if "input_key" not in st.session_state:
-    st.session_state.input_key = 0
-if "doc_counters" not in st.session_state:
-    st.session_state.doc_counters = {}
-if "exported_file" not in st.session_state:
-    st.session_state.exported_file = None
-if "exported_file_name" not in st.session_state:
-    st.session_state.exported_file_name = None
-if "exported_file_mime" not in st.session_state:
-    st.session_state.exported_file_mime = None
-
-# Backend URL
+# --- Constants ---
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+SUGGESTED_PROMPTS = {
+    "Announcement": [
+        "Please write an announcement about a change in lecture schedule for the GenAI course.",
+        "Announce the cancellation of tomorrow's seminar due to unforeseen circumstances.",
+        "Inform students about the upcoming registration deadline for the summer semester."
+    ],
+    "Student Communication": [
+        "Send a reminder to students about the upcoming exam and required materials.",
+        "Communicate the new office hours for the academic advisor.",
+        "Notify students about the availability of new course materials on Moodle."
+    ],
+    "Meeting Summary": [
+        "Summarize the key points and action items from today's faculty meeting.",
+        "Provide a summary of the decisions made during the student council meeting.",
+        "List the main discussion topics from the recent department meeting."
+    ]
+}
 
-def generate_document(doc_type: str, tone: str, prompt: str, additional_context: str = "", sender_name: str = "", sender_profession: str = "", language: str = "English"):
-    """
-    Generate a document using the LLM service.
+# --- Session State Initialization ---
+def init_session_state():
+    defaults = {
+        "messages": [],
+        "current_document": None,
+        "document_history": [],
+        "is_generating": False,
+        "typing": False,
+        "input_key": 0,
+        "show_preview": False,
+        "preview_doc_idx": None,
+        "prompt_input": "",
+        "show_suggestions": True,
+        "selected_suggestion": None,
+        "clear_prompt_input": False,
+        "last_doc_type": None,
+        "exported_file": None,
+        "exported_file_name": None,
+        "exported_file_mime": None
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-    Args:
-        doc_type (str): The type of document to generate.
-        tone (str): The tone to use in the document.
-        prompt (str): The main prompt or key points for the document.
-        additional_context (str, optional): Any additional context to include. Defaults to "".
-        sender_name (str, optional): The sender's name. Defaults to "".
-        sender_profession (str, optional): The sender's profession. Defaults to "".
-        language (str, optional): The language of the email. Defaults to "English".
-
-    Return:
-        dict or None: The response from the backend API, or None if an error occurs.
-    """
+# --- Utility Functions ---
+def generate_document(doc_type, tone, prompt, additional_context="", sender_name="", sender_profession="", language="English"):
     try:
         response = requests.post(
             f"{BACKEND_URL}/api/documents/generate",
@@ -377,108 +382,36 @@ def generate_document(doc_type: str, tone: str, prompt: str, additional_context:
         st.error(f"Error generating document: {str(e)}")
         return None
 
-def export_document_and_prepare_download(document, format, doc_type, tone):
-    """
-    Export a document in the specified format and prepare it for download.
-
-    Args:
-        document (str): The document content to export.
-        format (str): The export format (e.g., 'pdf', 'docx', 'txt').
-        doc_type (str): The type of document.
-        tone (str): The tone of the document.
-
-    Return:
-        None. Sets session state variables for the exported file.
-    """
-    metadata = {"doc_type": doc_type or "Document", "tone": tone or "Neutral"}
+def refine_document(current_document, refinement_prompt, doc_type, tone, history=None):
     try:
+        payload = {
+            "current_document": current_document,
+            "refinement_prompt": refinement_prompt,
+            "doc_type": doc_type,
+            "tone": tone
+        }
+        if history:
+            payload["history"] = history
         response = requests.post(
-            f"{BACKEND_URL}/api/documents/export",
-            json={
-                "document_content": document,
-                "format": format,
-                "metadata": metadata
-            }
+            f"{BACKEND_URL}/api/documents/refine",
+            json=payload,
+            stream=True
         )
         response.raise_for_status()
-        file_bytes = response.content
-        file_ext = format.lower()
-        file_name = f"TUM_{doc_type}_{tone}.{file_ext}"
-        mime = {
-            "pdf": "application/pdf",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "txt": "text/plain"
-        }.get(file_ext, "application/octet-stream")
-        st.session_state.exported_file = file_bytes
-        st.session_state.exported_file_name = file_name
-        st.session_state.exported_file_mime = mime
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                try:
+                    chunk = json.loads(line.decode().replace('data: ', ''))
+                    full_response += chunk["document"]
+                except Exception:
+                    continue
+        return full_response
     except Exception as e:
-        st.error(f"Error exporting document: {str(e)}")
-        st.session_state.exported_file = None
-        st.session_state.exported_file_name = None
-        st.session_state.exported_file_mime = None
+        st.error(f"Error refining document: {str(e)}")
+        return None
 
-def simulate_streaming(text: str, chunk_size: int = 10):
-    """
-    Simulate streaming text by yielding chunks.
-
-    Args:
-        text (str): The text to stream.
-        chunk_size (int, optional): The size of each chunk. Defaults to 10.
-
-    Return:
-        generator: Yields chunks of the text.
-    """
-    for i in range(0, len(text), chunk_size):
-        yield text[i:i + chunk_size]
-        time.sleep(0.02)  # Small delay for smooth animation
-
-# Document Preview Modal state
-if "show_preview" not in st.session_state:
-    st.session_state.show_preview = False
-if "preview_doc_idx" not in st.session_state:
-    st.session_state.preview_doc_idx = None
-
-def open_preview(idx):
-    """
-    Open the document preview modal for a given document index.
-
-    Args:
-        idx (int): The index of the document in history to preview.
-
-    Return:
-        None. Updates session state to show the preview modal.
-    """
-    st.session_state.show_preview = True
-    st.session_state.preview_doc_idx = idx
-
-def close_preview():
-    """
-    Close the document preview modal.
-
-    Args:
-        None
-
-    Return:
-        None. Updates session state to hide the preview modal.
-    """
-    st.session_state.show_preview = False
-    st.session_state.preview_doc_idx = None
-
-# Helper to fetch and return file bytes for download
 def get_exported_file_bytes(document, format, doc_type, tone):
-    """
-    Fetch and return file bytes for download from the backend export endpoint.
-
-    Args:
-        document (str): The document content to export.
-        format (str): The export format (e.g., 'pdf', 'docx', 'txt').
-        doc_type (str): The type of document.
-        tone (str): The tone of the document.
-
-    Return:
-        bytes or None: The file bytes if successful, or None if an error occurs.
-    """
     metadata = {"doc_type": doc_type or "Document", "tone": tone or "Neutral"}
     try:
         response = requests.post(
@@ -495,220 +428,247 @@ def get_exported_file_bytes(document, format, doc_type, tone):
         st.error(f"Error exporting document: {str(e)}")
         return None
 
-def refine_document(current_document: str, refinement_prompt: str, doc_type: str, tone: str, history=None):
-    """
-    Refine a document using the LLM service, with up to the last 3 documents as history.
+def simulate_streaming(text, chunk_size=10):
+    for i in range(0, len(text), chunk_size):
+        yield text[i:i + chunk_size]
+        time.sleep(0.02)
 
-    Args:
-        current_document (str): The document to be refined.
-        refinement_prompt (str): The user's instruction for refinement.
-        doc_type (str): The type of document.
-        tone (str): The tone to use in the document.
-        history (list, optional): List of previous document contents for context. Defaults to None.
+def open_preview(idx):
+    st.session_state.show_preview = True
+    st.session_state.preview_doc_idx = idx
 
-    Return:
-        str or None: The refined document as a string, or None if an error occurs.
-    """
-    try:
-        payload = {
-            "current_document": current_document,
-            "refinement_prompt": refinement_prompt,
-            "doc_type": doc_type,
-            "tone": tone
-        }
-        if history:
-            payload["history"] = history
-        response = requests.post(
-            f"{BACKEND_URL}/api/documents/refine",
-            json=payload,
-            stream=True
+def close_preview():
+    st.session_state.show_preview = False
+    st.session_state.preview_doc_idx = None
+
+# --- Sidebar UI ---
+def render_sidebar():
+    with st.sidebar:
+        st.markdown('<div class="sidebar-header">', unsafe_allow_html=True)
+        st.image("https://upload.wikimedia.org/wikipedia/commons/c/c8/Logo_of_the_Technical_University_of_Munich.svg", width=150)
+        st.markdown("### Document Settings")
+        doc_type = st.selectbox(
+            "📄 Document Type",
+            options=[dt.value for dt in DocumentType],
+            format_func=lambda x: x.replace("_", " ").title()
         )
-        response.raise_for_status()
-        # Stream the response
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                try:
-                    chunk = json.loads(line.decode().replace('data: ', ''))
-                    full_response += chunk["document"]
-                except Exception:
-                    continue
-        return full_response
-    except Exception as e:
-        st.error(f"Error refining document: {str(e)}")
-        return None
+        tone = st.selectbox(
+            "🎭 Tone",
+            options=[t.value for t in ToneType],
+            format_func=lambda x: x.replace("_", " ").title()
+        )
+        sender_name = st.text_input("Sender Name", value="")
+        sender_profession = st.text_input("Sender Profession", value="")
+        language = st.selectbox("Language", options=["English", "German", "Both"], index=0)
+        st.markdown("---")
+        st.markdown("### 📜 Document History")
+        doc_counts = {}
+        for doc in st.session_state.document_history:
+            key = (doc.get('type', 'Unknown'), doc.get('tone', 'Neutral'))
+            doc_counts[key] = doc_counts.get(key, 0) + 1
+            doc['doc_number'] = doc_counts[key]
+        for idx, doc in enumerate(reversed(st.session_state.document_history)):
+            title = f"[{doc.get('type', 'Unknown')}_{doc.get('tone', 'Neutral')}_{doc['doc_number']}]"
+            st.markdown(f"""
+            <div class="history-item">
+                <div class="history-item-header">
+                    <span class="history-item-title">{title}</span>
+                </div>
+                <div class="history-item-content">{doc['content'][:200]}{'...' if len(doc['content']) > 200 else ''}</div>
+                <div class="history-item-actions">
+            """, unsafe_allow_html=True)
+            col1, col2, col3 = st.columns([1,1,1])
+            with col1:
+                if st.button("👁️ Preview", key=f"preview_{idx}", on_click=open_preview, args=(idx,)):
+                    pass
+            with col2:
+                file_bytes = get_exported_file_bytes(doc['content'], 'pdf', doc.get('type'), doc.get('tone'))
+                if file_bytes:
+                    st.download_button(
+                        label="📑 PDF",
+                        data=file_bytes,
+                        file_name=f"TUM_{doc.get('type', 'Document')}_{doc.get('tone', 'Neutral')}.pdf",
+                        mime="application/pdf",
+                        key=f"download_pdf_{idx}"
+                    )
+            with col3:
+                file_bytes = get_exported_file_bytes(doc['content'], 'docx', doc.get('type'), doc.get('tone'))
+                if file_bytes:
+                    st.download_button(
+                        label="📘 DOCX",
+                        data=file_bytes,
+                        file_name=f"TUM_{doc.get('type', 'Document')}_{doc.get('tone', 'Neutral')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_docx_{idx}"
+                    )
+            st.markdown("</div></div>", unsafe_allow_html=True)
+        return doc_type, tone, sender_name, sender_profession, language
 
-# Sidebar for document type and tone selection
-with st.sidebar:
-    st.markdown('<div class="sidebar-header">', unsafe_allow_html=True)
-    st.image("https://upload.wikimedia.org/wikipedia/commons/c/c8/Logo_of_the_Technical_University_of_Munich.svg", width=150)
-    
-    st.markdown("### Document Settings")
-    doc_type = st.selectbox(
-        "📄 Document Type",
-        options=[dt.value for dt in DocumentType],
-        format_func=lambda x: x.replace("_", " ").title()
-    )
-    tone = st.selectbox(
-        "🎭 Tone",
-        options=[t.value for t in ToneType],
-        format_func=lambda x: x.replace("_", " ").title()
-    )
-    sender_name = st.text_input("Sender Name", value="")
-    sender_profession = st.text_input("Sender Profession", value="")
-    language = st.selectbox("Language", options=["English", "German", "Both"], index=0)
-    
-    st.markdown("---")
-    st.markdown("### 📜 Document History")
-
-    # Count documents per (type, tone)
-    doc_counts = {}
-    for doc in st.session_state.document_history:
-        key = (doc.get('type', 'Unknown'), doc.get('tone', 'Neutral'))
-        doc_counts[key] = doc_counts.get(key, 0) + 1
-        doc['doc_number'] = doc_counts[key]
-
-    for idx, doc in enumerate(reversed(st.session_state.document_history)):
-        title = f"[{doc.get('type', 'Unknown')}_{doc.get('tone', 'Neutral')}_{doc['doc_number']}]"
-        st.markdown(f"""
-        <div class="history-item">
-            <div class="history-item-header">
-                <span class="history-item-title">{title}</span>
+# --- Chat UI ---
+def render_chat():
+    st.title("TUM Admin Assistant 🤖")
+    chat_container = st.container()
+    with chat_container:
+        for message in st.session_state.messages:
+            st.markdown(f"""
+            <div class="chat-message {message['role']}">
+                <div class="content">
+                    <div class="avatar">{'👤' if message['role'] == 'user' else '🤖'}</div>
+                    <div class="message">{message['content']}</div>
+                </div>
             </div>
-            <div class="history-item-content">{doc['content'][:200]}{'...' if len(doc['content']) > 200 else ''}</div>
-            <div class="history-item-actions">
-        """, unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1,1,1])
-        with col1:
-            if st.button("👁️ Preview", key=f"preview_{idx}", on_click=open_preview, args=(idx,)):
-                pass
-        with col2:
-            file_bytes = get_exported_file_bytes(doc['content'], 'pdf', doc.get('type'), doc.get('tone'))
-            if file_bytes:
-                st.download_button(
-                    label="📑 PDF",
-                    data=file_bytes,
-                    file_name=f"TUM_{doc.get('type', 'Document')}_{doc.get('tone', 'Neutral')}.pdf",
-                    mime="application/pdf",
-                    key=f"download_pdf_{idx}"
-                )
-        with col3:
-            file_bytes = get_exported_file_bytes(doc['content'], 'docx', doc.get('type'), doc.get('tone'))
-            if file_bytes:
-                st.download_button(
-                    label="📘 DOCX",
-                    data=file_bytes,
-                    file_name=f"TUM_{doc.get('type', 'Document')}_{doc.get('tone', 'Neutral')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key=f"download_docx_{idx}"
-                )
-        st.markdown("</div></div>", unsafe_allow_html=True)
-
-# Show download button if a file is ready
-if st.session_state.exported_file:
-    st.download_button(
-        label=f"Download {st.session_state.exported_file_name}",
-        data=st.session_state.exported_file,
-        file_name=st.session_state.exported_file_name,
-        mime=st.session_state.exported_file_mime,
-        key="download_btn"
-    )
-
-# Document Preview Modal
-if st.session_state.show_preview and st.session_state.preview_doc_idx is not None:
-    doc = st.session_state.document_history[-(st.session_state.preview_doc_idx+1)]
-    st.markdown(
-        f'''<div style="background: #23272b; border-radius: 1.2rem; box-shadow: 0 12px 48px rgba(0,100,170,0.22); max-width: 900px; margin: 3% auto 2rem auto; padding: 2.7rem 2.5rem 2.2rem 2.5rem; border: 2.5px solid #0064AA;">
-        <div style="font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: 0.5px; margin-bottom: 1.5rem; text-align: left;">
-            📢 Announcement Preview
-        </div>
-        <div style="background: #181c20; border-radius: 0.9rem; padding: 1.6rem 1.3rem; color: #f5f5f5; font-size: 1.18rem; line-height: 1.8; min-height: 260px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #333;">
-        {doc['content'].replace('<','&lt;').replace('>','&gt;').rstrip('</div>').rstrip()}</div></div>''',
-        unsafe_allow_html=True
-    )
-    st.button("Close Preview", on_click=close_preview, key="close_preview_btn", help="Close this preview")
-
-# Main chat interface
-st.title("TUM Admin Assistant 🤖")
-
-# Chat container
-chat_container = st.container()
-
-# Display chat messages
-with chat_container:
-    for message in st.session_state.messages:
-        st.markdown(f"""
-        <div class="chat-message {message['role']}">
-            <div class="content">
-                <div class="avatar">{'👤' if message['role'] == 'user' else '🤖'}</div>
-                <div class="message">{message['content']}</div>
+            """, unsafe_allow_html=True)
+        if st.session_state.get("typing", False):
+            st.markdown("""
+            <div class="chat-message assistant" style="max-width: 300px; min-width: 80px; min-height: 50px; height: 50px; display: flex; align-items: center; justify-content: center; padding: 0.2rem 0.7rem;">
+                <div class="content" style="width:100%; height:100%; display: flex; align-items: center; justify-content: center;">
+                    <div class="avatar">🤖</div>
+                    <div class="message" style="font-size: 1.05rem; font-weight: 500; margin-left: 0.5rem; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
+                        <span style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">Agent typing <span class="typing-indicator-dots" style="margin-left: 0.2rem;"><span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span></span>
+                    </div>
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Show typing indicator if generating
-    if st.session_state.typing:
-        st.markdown("""
-        <div class="typing-indicator">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-        </div>
-        """, unsafe_allow_html=True)
+            <style>
+            @keyframes blink {
+                0% { opacity: 0.2; }
+                20% { opacity: 1; }
+                100% { opacity: 0.2; }
+            }
+            .typing-indicator-dots .dot {
+                font-size: 1.2rem;
+                opacity: 0.2;
+                animation: blink 1.4s infinite both;
+            }
+            .typing-indicator-dots .dot:nth-child(2) {
+                animation-delay: 0.2s;
+            }
+            .typing-indicator-dots .dot:nth-child(3) {
+                animation-delay: 0.4s;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-# Input container
-with st.container():
-    st.markdown('<div class="input-container">', unsafe_allow_html=True)
-    prompt = st.text_area("", placeholder="Type your message here...", key=f"prompt_input_{st.session_state.input_key}", height=50)
-    if st.button("Send ✉️", key="send_button", disabled=st.session_state.is_generating):
-        if prompt:
-            st.session_state.is_generating = True
-            st.session_state.typing = True
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.spinner(""):
-                # If there is a previous document, treat as refinement
-                if st.session_state.document_history:
-                    last_doc = st.session_state.document_history[-1]
-                    doc_type_val = last_doc.get("type", doc_type)
-                    tone_val = last_doc.get("tone", tone)
-                    # Send the full document history for context
-                    history_docs = [d["content"] for d in st.session_state.document_history]
-                    refined = refine_document(last_doc["content"], prompt, doc_type_val, tone_val, history=history_docs)
-                    if refined:
-                        message_placeholder = st.empty()
-                        full_response = ""
-                        for chunk in simulate_streaming(refined):
-                            full_response += chunk
-                            message_placeholder.markdown(f"""
-                            <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
-                        st.session_state.current_document = refined
-                        st.session_state.messages.append({"role": "assistant", "content": refined})
-                        st.session_state.document_history.append({
-                            "type": doc_type_val,
-                            "tone": tone_val,
-                            "content": refined,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                else:
-                    # No previous document, generate new
-                    result = generate_document(doc_type, tone, prompt, sender_name=sender_name, sender_profession=sender_profession, language=language)
-                    if result:
-                        message_placeholder = st.empty()
-                        full_response = ""
-                        for chunk in simulate_streaming(result["document"]):
-                            full_response += chunk
-                            message_placeholder.markdown(f"""
-                            <div class=\"chat-message assistant\">\n<div class=\"content\">\n<div class=\"avatar\">🤖</div>\n<div class=\"message\">{full_response}</div>\n</div>\n</div>\n""", unsafe_allow_html=True)
-                        st.session_state.current_document = result["document"]
-                        st.session_state.messages.append({"role": "assistant", "content": result["document"]})
-                        st.session_state.document_history.append({
-                            "type": doc_type,
-                            "tone": tone,
-                            "content": result["document"],
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-            st.session_state.is_generating = False
-            st.session_state.typing = False
-            st.session_state.input_key += 1
-            st.experimental_rerun()
-    st.markdown('</div>', unsafe_allow_html=True) 
+# --- Input UI ---
+def render_input(doc_type):
+    with st.container():
+        st.markdown('<div class="input-container">', unsafe_allow_html=True)
+        suggested = SUGGESTED_PROMPTS.get(doc_type, [])
+        if st.session_state["show_suggestions"] and suggested:
+            st.markdown("<div style='margin-bottom: 0.5rem; font-weight: 600;'>Suggested prompts:</div>", unsafe_allow_html=True)
+            cols = st.columns(len(suggested))
+            for i, suggestion in enumerate(suggested):
+                if cols[i].button(suggestion, key=f"suggestion_{i}"):
+                    st.session_state["prompt_input"] = suggestion
+                    st.session_state["selected_suggestion"] = i
+        if st.session_state.get("clear_prompt_input", False):
+            st.session_state["prompt_input"] = ""
+            st.session_state["clear_prompt_input"] = False
+        prompt = st.text_area("", placeholder="Type your message here...", key="prompt_input", height=68)
+        send_clicked = st.button("Send ✉️", key="send_button", disabled=st.session_state.is_generating)
+        st.markdown('</div>', unsafe_allow_html=True)
+        return send_clicked, prompt
+
+# --- Main App Logic ---
+def main():
+    st.markdown("""
+    <style>
+    /* ... (your CSS here, unchanged) ... */
+    </style>
+    """, unsafe_allow_html=True)
+    init_session_state()
+    doc_type, tone, sender_name, sender_profession, language = render_sidebar()
+    # Reset suggestions when document type changes
+    if st.session_state["last_doc_type"] != doc_type:
+        st.session_state["show_suggestions"] = True
+        st.session_state["selected_suggestion"] = None
+        st.session_state["last_doc_type"] = doc_type
+        st.session_state["prompt_input"] = ""
+    render_chat()
+    send_clicked, prompt = render_input(doc_type)
+    # Handle sending
+    if send_clicked and prompt:
+        st.session_state["show_suggestions"] = False
+        st.session_state["selected_suggestion"] = None
+        st.session_state["clear_prompt_input"] = True
+        st.session_state.is_generating = True
+        st.session_state["typing"] = True
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.experimental_rerun()
+    # Handle response (streamed)
+    if st.session_state.get("typing", False) and st.session_state.is_generating:
+        message_placeholder = st.empty()
+        with st.spinner(""):
+            if st.session_state.document_history:
+                last_doc = st.session_state.document_history[-1]
+                doc_type_val = last_doc.get("type", doc_type)
+                tone_val = last_doc.get("tone", tone)
+                history_docs = [d["content"] for d in st.session_state.document_history]
+                full_response = ""
+                for chunk in simulate_streaming(refine_document(last_doc["content"], st.session_state["messages"][-1]["content"], doc_type_val, tone_val, history=history_docs)):
+                    full_response += chunk
+                    message_placeholder.markdown(f"""
+                    <div class=\"chat-message assistant\" style=\"max-width: 700px;\">
+                        <div class=\"content\">
+                            <div class=\"avatar\">🤖</div>
+                            <div class=\"message\">{full_response}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.session_state.current_document = full_response
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.session_state.document_history.append({
+                    "type": doc_type_val,
+                    "tone": tone_val,
+                    "content": full_response,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+            else:
+                full_response = ""
+                result = generate_document(doc_type, tone, st.session_state["messages"][-1]["content"], sender_name=sender_name, sender_profession=sender_profession, language=language)
+                if result:
+                    for chunk in simulate_streaming(result["document"]):
+                        full_response += chunk
+                        message_placeholder.markdown(f"""
+                        <div class=\"chat-message assistant\" style=\"max-width: 700px;\">
+                            <div class=\"content\">
+                                <div class=\"avatar\">🤖</div>
+                                <div class=\"message\">{full_response}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    st.session_state.current_document = result["document"]
+                    st.session_state.messages.append({"role": "assistant", "content": result["document"]})
+                    st.session_state.document_history.append({
+                        "type": doc_type,
+                        "tone": tone,
+                        "content": result["document"],
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    })
+        st.session_state.is_generating = False
+        st.session_state["typing"] = False
+        st.experimental_rerun()
+    # Document Preview Modal
+    if st.session_state.show_preview and st.session_state.preview_doc_idx is not None:
+        doc = st.session_state.document_history[-(st.session_state.preview_doc_idx+1)]
+        st.markdown(
+            f'''<div style="background: #23272b; border-radius: 1.2rem; box-shadow: 0 12px 48px rgba(0,100,170,0.22); max-width: 900px; margin: 3% auto 2rem auto; padding: 2.7rem 2.5rem 2.2rem 2.5rem; border: 2.5px solid #0064AA;">
+            <div style="font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: 0.5px; margin-bottom: 1.5rem; text-align: left;">
+                📢 Announcement Preview
+            </div>
+            <div style="background: #181c20; border-radius: 0.9rem; padding: 1.6rem 1.3rem; color: #f5f5f5; font-size: 1.18rem; line-height: 1.8; min-height: 260px; max-height: 600px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #333;">
+            {doc['content'].replace('<','&lt;').replace('>','&gt;').rstrip('</div>').rstrip()}</div></div>''',
+            unsafe_allow_html=True
+        )
+        st.button("Close Preview", on_click=close_preview, key="close_preview_btn", help="Close this preview")
+    # Show download button if a file is ready
+    if st.session_state.exported_file:
+        st.download_button(
+            label=f"Download {st.session_state.exported_file_name}",
+            data=st.session_state.exported_file,
+            file_name=st.session_state.exported_file_name,
+            mime=st.session_state.exported_file_mime,
+            key="download_btn"
+        )
+
+if __name__ == "__main__":
+    main() 
