@@ -47,6 +47,14 @@ class LLMService:
                 # Initialize conversation memory
                 self.conversation_memories = {}
                 
+                # Initialize a single conversation buffer for the session
+                self.conversation_memory = ConversationBufferMemory()
+                self.conversation_chain = ConversationChain(
+                    llm=self.llm,
+                    memory=self.conversation_memory,
+                    verbose=True
+                )
+                
                 logger.info("Successfully initialized Gemini model and LangChain")
             except Exception as e:
                 logger.error(f"Error initializing Gemini API: {str(e)}")
@@ -246,13 +254,10 @@ Tone: {tone.value}
                 }
                 return
 
-            # Compose conversation/document history section
+            # Create a context-aware prompt that includes conversation history
             history_section = ""
             if history:
-                history_section = "\n\nPrevious Conversation/Document History:\n-----------------\n"
-                for idx, h in enumerate(history):
-                    history_section += f"[{idx+1}] {h}\n"
-                history_section += "-----------------\n"
+                history_section = f"Below is the conversation history: \n{history}\n"
 
             # Universal refinement prompt template
             refinement_template = f"""
@@ -286,33 +291,41 @@ Return ONLY the refined document, ready to send to students or staff.
                 doc_type=doc_type.value
             )
 
-            # Generate the refined document
-            response = self.model.generate_content(prompt)
+            # Use the conversation chain to maintain context
+            response = self.conversation_chain.predict(input=prompt)
 
-            if not response or not response.text:
-                logger.error("Empty response from Gemini API")
-                raise Exception("Empty response from Gemini API")
+            if not response:
+                logger.error("Empty response from conversation chain")
+                raise Exception("Empty response from conversation chain")
 
             # Stream the response in chunks
-            chunk_size = 50  # Adjust this value based on your needs
-            text = response.text
-            for i in range(0, len(text), chunk_size):
-                chunk = text[i:i + chunk_size]
+            chunk_size = 50
+            for i in range(0, len(response), chunk_size):
+                chunk = response[i:i + chunk_size]
                 yield {
                     "document": chunk,
                     "metadata": {
                         "doc_type": doc_type.value,
                         "tone": tone.value,
-                        "generated_with": "Gemini Pro",
+                        "generated_with": "Gemini Pro with Conversation Buffer",
                         "is_refinement": True,
                         "is_streaming": True,
-                        "is_complete": i + chunk_size >= len(text)
+                        "is_complete": i + chunk_size >= len(response)
                     }
                 }
-                await asyncio.sleep(0.1)  # Add a small delay between chunks
+                await asyncio.sleep(0.1)
 
-            logger.info("Successfully refined document")
+            logger.info("Successfully refined document with conversation buffer")
 
         except Exception as e:
             logger.error(f"Error refining document: {str(e)}")
-            raise Exception(f"Error refining document: {str(e)}") 
+            raise Exception(f"Error refining document: {str(e)}")
+
+    def get_conversation_history(self) -> str:
+        """Get the current conversation history from the buffer."""
+        return self.conversation_memory.buffer
+
+    def clear_conversation_history(self):
+        """Clear the conversation buffer."""
+        self.conversation_memory.clear()
+        logger.info("Conversation buffer cleared") 

@@ -20,35 +20,6 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Models
-class DocumentType(str, Enum):
-    ANNOUNCEMENT = "Announcement"
-    STUDENT_COMMUNICATION = "Student Communication"
-    MEETING_SUMMARY = "Meeting Summary"
-
-class ToneType(str, Enum):
-    NEUTRAL = "Neutral"
-    FRIENDLY = "Friendly"
-    FIRM = "Firm but polite"
-    FORMAL = "Formal"
-
-class DocumentRequest(BaseModel):
-    prompt: str
-    doc_type: DocumentType
-    tone: ToneType
-    additional_context: Optional[str] = None
-
-class RefinementRequest(BaseModel):
-    refinement_prompt: str
-    current_document: str
-    doc_type: DocumentType
-    tone: ToneType
-
-class DocumentResponse(BaseModel):
-    document: str
-    metadata: Dict[str, str]
-    history: Optional[List[Dict[str, str]]] = None
-
 # Initialize FastAPI
 app = FastAPI(title="TUM Admin Assistant")
 
@@ -103,7 +74,7 @@ async def generate_document(request: DocumentRequest):
             request.doc_type,
             request.tone,
             request.prompt,
-            request.additional_context
+            request.additional_context or ""
         )
         return result
     except Exception as e:
@@ -148,3 +119,9 @@ async def export_document(request: ExportRequest):
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"} 
+
+
+#LANGCHAIN WORKING OR NOT
+@app.get("/api/conversation/history")
+async def get_conversation_history():
+    return {"history": llm_service.get_conversation_history()}
